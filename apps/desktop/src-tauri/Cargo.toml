@@ -1,0 +1,52 @@
+[package]
+name = "jarvis"
+version = "0.1.0"
+description = "Local-first personal AI assistant"
+authors = ["Aahaan Ved"]
+license = "MIT"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1.52.3", features = ["full"] }
+reqwest = { version = "0.13.4", features = ["json", "stream"] }
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+sqlite-vec = "0.1.9"
+tokio-cron-scheduler = "0.15.1"
+oauth2 = "5.0.0"
+notify = "8.2.0"
+pulldown-cmark = "0.13.4"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+tracing-appender = "0.2.5"
+chrono = { version = "0.4.45", features = ["serde"] }
+anyhow = "1.0.103"
+thiserror = "2.0.18"
+futures-util = "0.3.32"
+async-trait = "0.1.89"
+uuid = { version = "1.23.4", features = ["v4", "serde"] }
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-notification = "2.3.3"
+tauri-plugin-global-shortcut = "2.3.2"
+tauri-plugin-single-instance = "2.4.2"
+tauri-plugin-window-state = "2.4.1"
+tauri-plugin-store = "2.4.3"
+tauri-plugin-shell = "2.3.5"
+tauri-plugin-dialog = "2.7.1"
+keyring = "4.1.4"
+

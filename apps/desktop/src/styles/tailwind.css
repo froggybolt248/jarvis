@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/*
+ * Jarvis design tokens.
+ *
+ * Dark-first, near-monochrome. Depth comes from the surface-lightness ladder
+ * and hairline borders — never drop shadows. The single accent hue is reserved
+ * for Jarvis's own voice/state (briefing card glow, voice HUD, streaming
+ * indicator). Feature UI stays monochrome.
+ */
+@theme {
+  --color-canvas: #07080a;
+  --color-surface-0: #0d0d10;
+  --color-surface-1: #121215;
+  --color-surface-2: #17171b;
+  --color-surface-3: #1d1d22;
+  --color-hairline: #242728;
+  --color-hairline-strong: #303436;
+
+  --color-ink: #f2f3f5;
+  --color-ink-dim: #9ba0a6;
+  --color-ink-faint: #5c6166;
+
+  --color-accent: #ffb454;
+  --color-accent-dim: #b97f36;
+  --color-positive: #7dd48a;
+  --color-caution: #e8927c;
+
+  --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
+
+  --radius-card: 10px;
+  --radius-tile: 8px;
+  --radius-pill: 999px;
+}
+
+html,
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
