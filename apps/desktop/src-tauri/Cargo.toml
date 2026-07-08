@@ -50,3 +50,7 @@ tauri-plugin-shell = "2.3.5"
 tauri-plugin-dialog = "2.7.1"
 keyring = "4.1.4"
 
+[dev-dependencies]
+tempfile = "3.27.0"
+wiremock = "0.6.5"
+

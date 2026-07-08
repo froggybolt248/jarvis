@@ -31,6 +31,33 @@
   --radius-card: 10px;
   --radius-tile: 8px;
   --radius-pill: 999px;
+
+  /* Hero-only accents: the ambient mesh gradient behind the Today hero card. */
+  --color-mesh-amber: #ffb454;
+  --color-mesh-blue: #3654c9;
+
+  --animate-mesh-drift-a: mesh-drift-a 40s ease-in-out infinite;
+  --animate-mesh-drift-b: mesh-drift-b 46s ease-in-out infinite;
+}
+
+@keyframes mesh-drift-a {
+  0%,
+  100% {
+    transform: translate(-8%, -6%) scale(1);
+  }
+  50% {
+    transform: translate(12%, 14%) scale(1.08);
+  }
+}
+
+@keyframes mesh-drift-b {
+  0%,
+  100% {
+    transform: translate(10%, 10%) scale(1.05);
+  }
+  50% {
+    transform: translate(-14%, -10%) scale(1);
+  }
 }
 
 html,

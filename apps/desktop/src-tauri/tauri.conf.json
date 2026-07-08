@@ -28,11 +28,11 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "C:/dev/jarvis-assets/icons/32x32.png",
+      "C:/dev/jarvis-assets/icons/128x128.png",
+      "C:/dev/jarvis-assets/icons/128x128@2x.png",
+      "C:/dev/jarvis-assets/icons/icon.icns",
+      "C:/dev/jarvis-assets/icons/icon.ico"
     ]
   }
 }
