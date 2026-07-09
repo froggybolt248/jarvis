@@ -36,6 +36,13 @@ impl OllamaProvider {
         self.embed_model = model.into();
         self
     }
+
+    /// The Ollama server base URL this provider targets (no trailing slash).
+    /// Used by setup commands that call the `core::setup::ollama` helpers
+    /// (detect/pull/ensure-running) against the same server.
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
 }
 
 impl Default for OllamaProvider {

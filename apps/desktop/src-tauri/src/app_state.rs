@@ -24,6 +24,9 @@ pub struct AppState {
     pub provider: OllamaProvider,
     pub vault: RwLock<Vault>,
     pub app_data_dir: PathBuf,
+    /// Shared HTTP client for outbound calls that aren't the LLM provider's
+    /// own (ntfy push, Google Calendar). Cloning is cheap (Arc inside).
+    pub http: reqwest::Client,
 }
 
 impl AppState {
@@ -50,6 +53,7 @@ impl AppState {
             provider,
             vault: RwLock::new(vault),
             app_data_dir,
+            http: reqwest::Client::new(),
         })
     }
 

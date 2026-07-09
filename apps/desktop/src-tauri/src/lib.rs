@@ -38,6 +38,27 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::recent_feed,
+            // Onboarding flow + vault location
+            commands::onboarding::get_onboarding_state,
+            commands::onboarding::set_onboarding_domains,
+            commands::onboarding::complete_onboarding,
+            commands::onboarding::get_default_vault_dir,
+            commands::onboarding::set_vault_dir,
+            // Ollama setup automation
+            commands::ollama::ollama_detect,
+            commands::ollama::ollama_recommended_models,
+            commands::ollama::ollama_install,
+            commands::ollama::ollama_ensure_running,
+            commands::ollama::ollama_pull,
+            // Google Calendar connection
+            commands::google::google_connect,
+            commands::google::google_status,
+            commands::google::google_disconnect,
+            commands::google::google_list_calendars,
+            // ntfy phone push
+            commands::notify::ntfy_get_config,
+            commands::notify::ntfy_setup,
+            commands::notify::ntfy_send_test,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

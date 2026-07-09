@@ -7,6 +7,11 @@
 //! Feature work packages (onboarding, calendar, diet, ...) add their own
 //! submodules here and register handlers in `lib.rs`.
 
+pub mod google;
+pub mod notify;
+pub mod ollama;
+pub mod onboarding;
+
 use tauri::State;
 
 use crate::app_state::AppState;
