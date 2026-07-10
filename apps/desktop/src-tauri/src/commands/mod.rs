@@ -7,10 +7,16 @@
 //! Feature work packages (onboarding, calendar, diet, ...) add their own
 //! submodules here and register handlers in `lib.rs`.
 
+pub mod agent;
+pub mod calendar;
+pub mod diet;
 pub mod google;
+pub mod gym;
+pub mod knowledge;
 pub mod notify;
 pub mod ollama;
 pub mod onboarding;
+pub mod study;
 
 use tauri::State;
 

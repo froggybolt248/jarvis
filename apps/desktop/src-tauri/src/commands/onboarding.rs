@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 
 use tauri::State;
+#[cfg(not(debug_assertions))]
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::app_state::{default_vault_path, AppState};
@@ -36,8 +37,18 @@ pub fn complete_onboarding(
     domains: Vec<String>,
 ) -> Result<(), String> {
     onboarding::complete(&state.db, &domains).map_err(|e| e.to_string())?;
+    // Only register autostart from a real (release) build. A debug binary loads
+    // its frontend from the Vite dev server (`devUrl`), so if it auto-launched
+    // on boot — with no dev server running — the webview would fail to load and
+    // the app would appear to crash. Registering it for boot is never correct.
+    #[cfg(not(debug_assertions))]
     if let Err(e) = app.autolaunch().enable() {
         tracing::warn!("failed to enable autostart after onboarding: {e}");
+    }
+    #[cfg(debug_assertions)]
+    {
+        let _ = &app;
+        tracing::info!("skipping autostart registration in debug build");
     }
     Ok(())
 }

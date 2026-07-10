@@ -60,6 +60,106 @@ export interface NtfyConfig {
   topic: string;
 }
 
+// ── Agent chat ──────────────────────────────────────────────────────────
+
+/** A cited source backing an answer, mirrors `agent_loop::Citation`. */
+export interface Citation {
+  index: number;
+  source_path: string;
+  heading: string | null;
+}
+
+/**
+ * Streamed events from a single agent turn, emitted one-by-one on the
+ * `"agent:event"` window event. Mirrors `agent_loop::AgentEvent`
+ * (`#[serde(tag = "type", rename_all = "snake_case")]`).
+ */
+export type AgentEvent =
+  | { type: "citations"; citations: Citation[] }
+  | { type: "token"; text: string }
+  | { type: "tool_call"; name: string }
+  | { type: "tool_result"; name: string; ok: boolean }
+  | { type: "done" }
+  | { type: "error"; message: string };
+
+/** Diet log entry, mirrors `queries::diet::DietLog`. */
+export interface DietLog {
+  id: string;
+  logged_at: string;
+  description: string;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  confidence: number | null;
+}
+
+/** Diet targets, mirrors `queries::diet::DietTargets`. */
+export interface DietTargets {
+  id: string;
+  effective_date: string;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  created_at: string;
+}
+
+/** Gym session, mirrors `queries::gym::GymSession`. */
+export interface GymSession {
+  id: string;
+  program_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  notes: string | null;
+}
+
+/** Gym set, mirrors `queries::gym::GymSet`. */
+export interface GymSet {
+  id: string;
+  session_id: string;
+  exercise: string;
+  weight: number | null;
+  reps: number | null;
+  rpe: number | null;
+  set_index: number | null;
+}
+
+/** Spaced-repetition study card, mirrors `queries::study::SrsCard`. */
+export interface SrsCard {
+  id: string;
+  course_id: string | null;
+  front: string;
+  back: string;
+  ease_factor: number;
+  interval_days: number;
+  repetitions: number;
+  due_at: string;
+  created_at: string;
+}
+
+/** Calendar event, mirrors `queries::calendar::CalendarEvent`. */
+export interface CalendarEvent {
+  id: string;
+  google_id: string | null;
+  calendar_id: string | null;
+  summary: string | null;
+  description: string | null;
+  location: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  all_day: boolean;
+  status: string | null;
+  updated_at: string;
+}
+
+/** Vault note summary, mirrors `core::memory::NoteSummary`. */
+export interface NoteSummary {
+  path: string;
+  title: string;
+  modified: string;
+}
+
 export const ipc = {
   /** Ollama server version + locally installed models. Rejects if unreachable. */
   ollamaHealth: () => invoke<ProviderHealth>("ollama_health"),
@@ -138,4 +238,49 @@ export const ipc = {
 
   /** Send the canned "connected" test push. */
   ntfySendTest: () => invoke<void>("ntfy_send_test"),
+
+  // ── Agent chat ────────────────────────────────────────────────────────
+  /**
+   * Run one agent turn for `message`, invoking `onEvent` for each streamed
+   * `AgentEvent` (citations, tokens, tool calls/results, done/error). The
+   * listener is wired up before the command is invoked so no early events
+   * are missed. Returns a disposer that unsubscribes the listener; call it
+   * once the turn is done (e.g. after an `AgentEvent` with `type: "done"`
+   * or `"error"`) or on unmount.
+   */
+  chat: async (message: string, onEvent: (e: AgentEvent) => void): Promise<() => void> => {
+    const unlisten = await listen<AgentEvent>("agent:event", (e) => onEvent(e.payload));
+    try {
+      await invoke<void>("chat", { message });
+    } catch (err) {
+      unlisten();
+      throw err;
+    }
+    return unlisten;
+  },
+
+  // ── Domain reads (diet, gym, study, calendar) ────────────────────────
+  /** Diet logs for `date` (`YYYY-MM-DD`), oldest first. */
+  dietLogsForDate: (date: string) => invoke<DietLog[]>("diet_logs_for_date", { date }),
+
+  /** The most recently-effective diet targets, or `null` if none are set. */
+  dietCurrentTargets: () => invoke<DietTargets | null>("diet_current_targets"),
+
+  /** Most recent gym sessions, newest first. */
+  gymRecentSessions: (limit: number) => invoke<GymSession[]>("gym_recent_sessions", { limit }),
+
+  /** Most recent sets logged for `exercise`, newest session first. */
+  gymSetsForExercise: (exercise: string, limit: number) =>
+    invoke<GymSet[]>("gym_sets_for_exercise", { exercise, limit }),
+
+  /** SRS cards due at or before `now` (RFC3339 timestamp), soonest first. */
+  studyDueCards: (now: string) => invoke<SrsCard[]>("study_due_cards", { now }),
+
+  /** Calendar events starting in `[start, end)` (RFC3339 timestamps), ascending. */
+  calendarEventsBetween: (start: string, end: string) =>
+    invoke<CalendarEvent[]>("calendar_events_between", { start, end }),
+
+  // ── Knowledge (vault notes) ──────────────────────────────────────────
+  /** Summaries of every note in the vault, newest-modified first. */
+  vaultListNotes: () => invoke<NoteSummary[]>("vault_list_notes"),
 };

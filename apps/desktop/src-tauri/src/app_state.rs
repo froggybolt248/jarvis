@@ -13,6 +13,7 @@ use std::sync::RwLock;
 use anyhow::{Context, Result};
 
 use crate::core::agent::provider::OllamaProvider;
+use crate::core::agent::tools::ToolRegistry;
 use crate::core::db::Db;
 use crate::core::memory::Vault;
 
@@ -27,6 +28,9 @@ pub struct AppState {
     /// Shared HTTP client for outbound calls that aren't the LLM provider's
     /// own (ntfy push, Google Calendar). Cloning is cheap (Arc inside).
     pub http: reqwest::Client,
+    /// The tools exposed to the agent loop. Stateless/cheap to build; shared
+    /// across every turn.
+    pub registry: ToolRegistry,
 }
 
 impl AppState {
@@ -54,6 +58,7 @@ impl AppState {
             vault: RwLock::new(vault),
             app_data_dir,
             http: reqwest::Client::new(),
+            registry: ToolRegistry::with_defaults(),
         })
     }
 

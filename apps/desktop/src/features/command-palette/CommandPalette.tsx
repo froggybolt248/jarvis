@@ -1,9 +1,11 @@
-import { useEffect, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { Command } from "cmdk";
 import { AnimatePresence, motion } from "motion/react";
 import { useUiStore } from "../../state/ui";
 import { useNavStore, VIEWS, type View } from "../../state/nav";
+import { useChatStore } from "../../state/chat";
 import { Kbd } from "../../components/ui/Kbd";
+import { ChatTurnView } from "../chat/ChatTurnView";
 import {
   SearchIcon,
   CalendarIcon,
@@ -42,6 +44,24 @@ export function CommandPalette() {
   const setOpen = useUiStore((s) => s.setPaletteOpen);
   const setView = useNavStore((s) => s.setView);
 
+  const chatStatus = useChatStore((s) => s.status);
+  const question = useChatStore((s) => s.question);
+  const askJarvis = useChatStore((s) => s.ask);
+  const resetChat = useChatStore((s) => s.reset);
+  const inChatMode = chatStatus !== "idle";
+
+  const [query, setQuery] = useState("");
+
+  // Whenever the palette closes (Cmd/Ctrl+K toggle, Esc, backdrop click),
+  // unsubscribe from any in-flight turn and drop back to a clean search
+  // state so reopening always starts fresh.
+  useEffect(() => {
+    if (!open) {
+      resetChat();
+      setQuery("");
+    }
+  }, [open, resetChat]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -55,6 +75,11 @@ export function CommandPalette() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  function handleBack() {
+    resetChat();
+    setQuery("");
+  }
 
   return (
     <AnimatePresence>
@@ -75,74 +100,98 @@ export function CommandPalette() {
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 480, damping: 34, duration: 0.2 }}
           >
-            <Command shouldFilter className="flex flex-col">
-              <div className="flex items-center gap-2.5 border-b border-hairline px-4 py-3.5">
-                <SearchIcon size={16} className="shrink-0 text-ink-faint" />
-                <Command.Input
-                  autoFocus
-                  placeholder="Ask Jarvis or jump to a view…"
-                  className="flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
-                />
-                <Kbd>esc</Kbd>
+            {inChatMode ? (
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2.5 border-b border-hairline px-4 py-3.5">
+                  <SparkleIcon size={16} className="shrink-0 text-accent" />
+                  <span className="flex-1 truncate text-sm text-ink">{question}</span>
+                  <Kbd>esc</Kbd>
+                </div>
+                <ChatTurnView onBack={handleBack} />
               </div>
+            ) : (
+              <Command shouldFilter className="flex flex-col">
+                <div className="flex items-center gap-2.5 border-b border-hairline px-4 py-3.5">
+                  <SearchIcon size={16} className="shrink-0 text-ink-faint" />
+                  <Command.Input
+                    autoFocus
+                    value={query}
+                    onValueChange={setQuery}
+                    placeholder="Ask Jarvis or jump to a view…"
+                    className="flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
+                  />
+                  <Kbd>esc</Kbd>
+                </div>
 
-              <Command.List className="max-h-80 overflow-y-auto p-2">
-                <Command.Empty className="px-3 py-6 text-center text-sm text-ink-faint">
-                  No results.
-                </Command.Empty>
-
-                <Command.Group
-                  heading="Navigate"
-                  className="px-1 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-ink-faint [&_[cmdk-group-items]]:mt-1.5 [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-0.5"
-                >
-                  {VIEWS.map((view) => {
-                    const meta = viewMeta[view];
-                    const Icon = meta.icon;
-                    return (
+                <Command.List className="max-h-80 overflow-y-auto p-2">
+                  <Command.Empty className="px-1 py-1">
+                    {query.trim() ? (
                       <Command.Item
-                        key={view}
-                        value={`navigate ${meta.label}`}
-                        onSelect={() => {
-                          setView(view);
-                          setOpen(false);
-                        }}
+                        value={`ask-jarvis ${query}`}
+                        onSelect={() => void askJarvis(query)}
                         className={itemClass}
                       >
-                        <Icon size={16} />
-                        {meta.label}
+                        <SparkleIcon size={16} className="text-accent" />
+                        <span className="truncate">Ask Jarvis: “{query}”</span>
                       </Command.Item>
-                    );
-                  })}
-                </Command.Group>
+                    ) : (
+                      <div className="px-3 py-6 text-center text-sm text-ink-faint">No results.</div>
+                    )}
+                  </Command.Empty>
 
-                <Command.Separator className="my-1.5 h-px bg-hairline" />
+                  <Command.Group
+                    heading="Navigate"
+                    className="px-1 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-ink-faint [&_[cmdk-group-items]]:mt-1.5 [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-0.5"
+                  >
+                    {VIEWS.map((view) => {
+                      const meta = viewMeta[view];
+                      const Icon = meta.icon;
+                      return (
+                        <Command.Item
+                          key={view}
+                          value={`navigate ${meta.label}`}
+                          onSelect={() => {
+                            setView(view);
+                            setOpen(false);
+                          }}
+                          className={itemClass}
+                        >
+                          <Icon size={16} />
+                          {meta.label}
+                        </Command.Item>
+                      );
+                    })}
+                  </Command.Group>
 
-                <Command.Group
-                  heading="Actions"
-                  className="px-1 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-ink-faint [&_[cmdk-group-items]]:mt-1.5 [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-0.5"
-                >
-                  {actions.map((action) => {
-                    const Icon = action.icon;
-                    return (
-                      <Command.Item
-                        key={action.id}
-                        value={action.label}
-                        onSelect={() => setOpen(false)}
-                        className={itemClass}
-                      >
-                        <Icon size={16} />
-                        {action.label}
-                      </Command.Item>
-                    );
-                  })}
-                </Command.Group>
-              </Command.List>
+                  <Command.Separator className="my-1.5 h-px bg-hairline" />
 
-              <div className="flex items-center justify-end gap-1.5 border-t border-hairline px-4 py-2.5 text-xs text-ink-faint">
-                <Kbd>↵</Kbd>
-                to ask Jarvis
-              </div>
-            </Command>
+                  <Command.Group
+                    heading="Actions"
+                    className="px-1 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-ink-faint [&_[cmdk-group-items]]:mt-1.5 [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-0.5"
+                  >
+                    {actions.map((action) => {
+                      const Icon = action.icon;
+                      return (
+                        <Command.Item
+                          key={action.id}
+                          value={action.label}
+                          onSelect={() => setOpen(false)}
+                          className={itemClass}
+                        >
+                          <Icon size={16} />
+                          {action.label}
+                        </Command.Item>
+                      );
+                    })}
+                  </Command.Group>
+                </Command.List>
+
+                <div className="flex items-center justify-end gap-1.5 border-t border-hairline px-4 py-2.5 text-xs text-ink-faint">
+                  <Kbd>↵</Kbd>
+                  to ask Jarvis
+                </div>
+              </Command>
+            )}
           </motion.div>
         </div>
       ) : null}

@@ -2,13 +2,30 @@
 
 pub mod watcher;
 
+// M3 RAG pipeline (WP-Memory-RAG): heading-aware chunking, embedding/indexing,
+// hybrid retrieval, and the core-memory block renderer.
+pub mod chunker;
+pub mod core_memory;
+pub mod embedder;
+pub mod retriever;
+
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
+use serde::Serialize;
 use uuid::Uuid;
 
 pub use watcher::{VaultEvent, VaultEventKind};
+
+/// Lightweight summary of one vault note, for listing without loading full
+/// contents into the UI.
+#[derive(Debug, Clone, Serialize)]
+pub struct NoteSummary {
+    pub path: String,
+    pub title: String,
+    pub modified: String,
+}
 
 // The vault is seeded from `vault-template/` at the repo root on first run.
 // Contents are embedded at compile time so the running app never depends on
@@ -201,6 +218,60 @@ impl Vault {
         let mut out = Vec::new();
         Self::walk_markdown(&self.root, &self.root, &mut out)?;
         Ok(out)
+    }
+
+    /// Summarize every note in the vault (path, derived title, last-modified
+    /// time), newest-modified first. Notes that error on read or metadata
+    /// (e.g. removed mid-scan) are skipped rather than failing the whole
+    /// call.
+    pub fn list_notes(&self) -> Result<Vec<NoteSummary>> {
+        let mut out = Vec::new();
+        for rel_path in self.list_markdown()? {
+            let rel = rel_path.to_string_lossy().replace('\\', "/");
+
+            let modified = match fs::metadata(self.root.join(&rel_path)).and_then(|m| m.modified())
+            {
+                Ok(m) => chrono::DateTime::<chrono::Utc>::from(m).to_rfc3339(),
+                Err(_) => continue,
+            };
+
+            let content = match self.read(&rel) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let title = Self::extract_title(&content).unwrap_or_else(|| {
+                rel_path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| rel.clone())
+            });
+
+            out.push(NoteSummary {
+                path: rel,
+                title,
+                modified,
+            });
+        }
+        out.sort_by(|a, b| b.modified.cmp(&a.modified));
+        Ok(out)
+    }
+
+    /// Scan the first ~40 lines of `content` for a `# ` heading, falling
+    /// back to the first `## ` heading. Returns the trimmed heading text.
+    fn extract_title(content: &str) -> Option<String> {
+        let mut h2: Option<String> = None;
+        for line in content.lines().take(40) {
+            let trimmed = line.trim_start();
+            if let Some(rest) = trimmed.strip_prefix("# ") {
+                return Some(rest.trim().to_string());
+            }
+            if h2.is_none() {
+                if let Some(rest) = trimmed.strip_prefix("## ") {
+                    h2 = Some(rest.trim().to_string());
+                }
+            }
+        }
+        h2
     }
 
     fn walk_markdown(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {

@@ -56,9 +56,10 @@ impl Default for OllamaProvider {
 /// leaving Ollama's thinking mode on costs ~90s of extra latency on
 /// CPU-only hardware.
 fn build_chat_body(messages: &[ChatMessage], opts: &ChatOptions) -> serde_json::Value {
+    let wire_messages: Vec<serde_json::Value> = messages.iter().map(message_to_wire).collect();
     let mut body = json!({
         "model": opts.model,
-        "messages": messages,
+        "messages": wire_messages,
         "stream": true,
         "think": opts.think,
     });
@@ -80,6 +81,28 @@ fn build_chat_body(messages: &[ChatMessage], opts: &ChatOptions) -> serde_json::
     }
 
     body
+}
+
+/// Serialize a `ChatMessage` into Ollama's wire format. This differs from the
+/// type's own `Serialize` impl in one important way: assistant `tool_calls`
+/// must be wrapped as `{"function": {"name":.., "arguments":..}}` (the same
+/// shape Ollama emits), so that echoing a prior assistant turn back into the
+/// conversation for multi-round tool use is accepted and correlated correctly.
+fn message_to_wire(m: &ChatMessage) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    obj.insert("role".to_string(), json!(m.role));
+    obj.insert("content".to_string(), json!(m.content));
+    if let Some(calls) = &m.tool_calls {
+        let wire: Vec<serde_json::Value> = calls
+            .iter()
+            .map(|c| json!({ "function": { "name": c.name, "arguments": c.arguments } }))
+            .collect();
+        obj.insert("tool_calls".to_string(), json!(wire));
+    }
+    if let Some(name) = &m.tool_name {
+        obj.insert("tool_name".to_string(), json!(name));
+    }
+    serde_json::Value::Object(obj)
 }
 
 /// Parse a single NDJSON line from `/api/chat` into zero or more
