@@ -3,4 +3,5 @@ pub mod db;
 pub mod google;
 pub mod memory;
 pub mod notify;
+pub mod scheduler;
 pub mod setup;

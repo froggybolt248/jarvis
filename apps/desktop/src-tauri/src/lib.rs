@@ -36,6 +36,16 @@ pub fn run() {
             let state = AppState::bootstrap(app_data_dir).map_err(|e| e.to_string())?;
             app.manage(state);
 
+            // Background scheduler: calendar sync, batched-notification
+            // flush, morning briefing. Runs for the lifetime of the app; a
+            // failure to even start it must never block the window opening.
+            let scheduler_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = crate::core::scheduler::start(scheduler_handle).await {
+                    eprintln!("scheduler failed to start: {e:#}");
+                }
+            });
+
             // Full re-index on startup, then keep the vault index fresh as
             // files change. Both run in the background: a slow or failing
             // embeddings model (e.g. not pulled yet) must never block the

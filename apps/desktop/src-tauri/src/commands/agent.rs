@@ -43,7 +43,7 @@ pub async fn chat(
         registry: &state.registry,
         model,
         date,
-        quiet_hours: false,
+        quiet_hours: crate::core::notify::dispatch::is_quiet_now(&state.db).unwrap_or(false),
     };
 
     agent_loop::run_turn(&ctx, &message, |event| {

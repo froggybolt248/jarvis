@@ -88,7 +88,7 @@ mod tests {
             let db = Db::open(&path).expect("first open should apply migrations");
             db.with_conn(|conn| {
                 let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-                assert_eq!(version, 1);
+                assert_eq!(version, 2);
                 Ok(())
             })
             .unwrap();
@@ -98,7 +98,7 @@ mod tests {
             let db = Db::open(&path).expect("second open should be idempotent");
             db.with_conn(|conn| {
                 let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-                assert_eq!(version, 1);
+                assert_eq!(version, 2);
                 let count: i64 = conn.query_row(
                     "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='chunks'",
                     [],

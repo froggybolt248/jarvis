@@ -5,6 +5,7 @@
 use tauri::State;
 
 use crate::app_state::AppState;
+use crate::core::notify::config;
 use crate::core::notify::ntfy::{self, NtfyConfig};
 
 /// Setting keys for the persisted ntfy configuration.
@@ -13,21 +14,7 @@ const NTFY_TOPIC: &str = "ntfy_topic";
 const DEFAULT_BASE_URL: &str = "https://ntfy.sh";
 
 fn load_config(state: &AppState) -> Result<Option<NtfyConfig>, String> {
-    let topic = state
-        .db
-        .get_setting(NTFY_TOPIC)
-        .map_err(|e| e.to_string())?
-        .filter(|t| !t.trim().is_empty());
-    let Some(topic) = topic else {
-        return Ok(None);
-    };
-    let base_url = state
-        .db
-        .get_setting(NTFY_BASE_URL)
-        .map_err(|e| e.to_string())?
-        .filter(|b| !b.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
-    Ok(Some(NtfyConfig { base_url, topic }))
+    config::load_config(&state.db).map_err(|e| e.to_string())
 }
 
 /// Return the persisted ntfy config, or `null` if not set up yet.

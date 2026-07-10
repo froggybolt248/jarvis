@@ -156,6 +156,18 @@ CREATE TABLE scheduler_jobs (
 );
 "#;
 
+const MIGRATION_002: &str = r#"
+CREATE TABLE notification_queue (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    priority INTEGER,
+    tags TEXT,
+    click TEXT
+);
+"#;
+
 /// Run all pending migrations, tracked via `PRAGMA user_version`. Idempotent:
 /// calling this on an already up-to-date database is a no-op.
 pub fn run(conn: &Connection) -> Result<()> {
@@ -164,6 +176,11 @@ pub fn run(conn: &Connection) -> Result<()> {
     if version < 1 {
         conn.execute_batch(MIGRATION_001)?;
         conn.pragma_update(None, "user_version", 1i64)?;
+    }
+
+    if version < 2 {
+        conn.execute_batch(MIGRATION_002)?;
+        conn.pragma_update(None, "user_version", 2i64)?;
     }
 
     Ok(())
