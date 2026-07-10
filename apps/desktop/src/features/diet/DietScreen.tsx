@@ -1,8 +1,60 @@
+import { useState } from "react";
 import { Card } from "../../components/ui/Card";
 import { Divider } from "../../components/ui/Divider";
 import { ProgressRing } from "../../components/ui/ProgressRing";
+import { Button } from "../../components/ui/Button";
 import { FlameIcon } from "../../components/icons";
+import { ipc } from "../../lib/ipc";
 import { useDietToday } from "./useDietToday";
+
+const inputClass =
+  "rounded-tile border border-hairline bg-surface-2 px-2 py-1 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-accent";
+
+function LogMealForm({ onLogged }: { onLogged: () => void }) {
+  const [description, setDescription] = useState("");
+  const [calories, setCalories] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    const trimmed = description.trim();
+    if (!trimmed || saving) return;
+    setSaving(true);
+    try {
+      await ipc.dietLogMeal({
+        description: trimmed,
+        calories: calories.trim() ? Number(calories) : undefined,
+      });
+      setDescription("");
+      setCalories("");
+      onLogged();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        className={`${inputClass} flex-1`}
+        placeholder="What did you eat?"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+      />
+      <input
+        className={`${inputClass} w-20`}
+        placeholder="kcal"
+        inputMode="numeric"
+        value={calories}
+        onChange={(e) => setCalories(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+      />
+      <Button variant="accent" onClick={submit} disabled={!description.trim() || saving}>
+        Log
+      </Button>
+    </div>
+  );
+}
 
 const timeFormat = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
 
@@ -37,11 +89,16 @@ function LoadingCard() {
 }
 
 export function DietScreen() {
-  const { loading, error, logs, targets, totals } = useDietToday();
+  const { loading, error, logs, targets, totals, refetch } = useDietToday();
 
   return (
     <div className="flex flex-col gap-6 p-8">
       <h1 className="text-lg font-semibold tracking-tight text-ink">Diet</h1>
+
+      <Card className="max-w-xl">
+        <h2 className="mb-3 text-sm font-medium text-ink-dim">Log meal</h2>
+        <LogMealForm onLogged={refetch} />
+      </Card>
 
       {loading ? (
         <LoadingCard />

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::{Local, Utc};
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -147,6 +148,55 @@ impl DietLog {
     }
 }
 
+/// Builds and inserts a new diet log entry logged "now", with no confidence
+/// score (confidence is reserved for auto-extracted logs, not explicit ones).
+pub(crate) fn log_meal(
+    db: &Db,
+    description: String,
+    calories: Option<i64>,
+    protein_g: Option<i64>,
+    carbs_g: Option<i64>,
+    fat_g: Option<i64>,
+) -> Result<DietLog> {
+    let log = DietLog::new(
+        Utc::now().to_rfc3339(),
+        description,
+        calories,
+        protein_g,
+        carbs_g,
+        fat_g,
+        None,
+    );
+    db.insert_log(&log)?;
+    Ok(log)
+}
+
+/// Builds and inserts new diet targets effective today (local date). Errors
+/// if every field is absent (nothing to set).
+pub(crate) fn set_diet_targets(
+    db: &Db,
+    calories: Option<i64>,
+    protein_g: Option<i64>,
+    carbs_g: Option<i64>,
+    fat_g: Option<i64>,
+) -> Result<DietTargets> {
+    if calories.is_none() && protein_g.is_none() && carbs_g.is_none() && fat_g.is_none() {
+        anyhow::bail!("at least one of calories, protein_g, carbs_g, fat_g must be set");
+    }
+
+    let targets = DietTargets {
+        id: Uuid::new_v4().to_string(),
+        effective_date: Local::now().format("%Y-%m-%d").to_string(),
+        calories,
+        protein_g,
+        carbs_g,
+        fat_g,
+        created_at: Utc::now().to_rfc3339(),
+    };
+    db.set_targets(&targets)?;
+    Ok(targets)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +241,27 @@ mod tests {
 
         let fetched = db.current_targets().unwrap().unwrap();
         assert_eq!(fetched, targets);
+    }
+
+    #[test]
+    fn log_meal_inserts_and_returns_log() {
+        let db = Db::open_in_memory().unwrap();
+        let log = log_meal(&db, "oatmeal".into(), Some(300), Some(10), Some(50), Some(5)).unwrap();
+        assert_eq!(log.description, "oatmeal");
+        assert!(log.confidence.is_none());
+
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let logs = db.logs_for_date(&today).unwrap();
+        assert_eq!(logs, vec![log]);
+    }
+
+    #[test]
+    fn set_diet_targets_requires_at_least_one_field() {
+        let db = Db::open_in_memory().unwrap();
+        assert!(set_diet_targets(&db, None, None, None, None).is_err());
+
+        let targets = set_diet_targets(&db, Some(2200), None, None, None).unwrap();
+        assert_eq!(targets.calories, Some(2200));
+        assert_eq!(db.current_targets().unwrap().unwrap(), targets);
     }
 }

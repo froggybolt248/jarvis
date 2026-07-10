@@ -276,6 +276,37 @@ export const ipc = {
   /** SRS cards due at or before `now` (RFC3339 timestamp), soonest first. */
   studyDueCards: (now: string) => invoke<SrsCard[]>("study_due_cards", { now }),
 
+  /** Logs a meal from the quick-add form. */
+  dietLogMeal: (args: {
+    description: string;
+    calories?: number;
+    proteinG?: number;
+    carbsG?: number;
+    fatG?: number;
+  }) => invoke<void>("diet_log_meal", args),
+
+  /** Sets today's diet targets from the quick-add form. At least one field must be set. */
+  dietSetTargets: (args: {
+    calories?: number;
+    proteinG?: number;
+    carbsG?: number;
+    fatG?: number;
+  }) => invoke<void>("diet_set_targets", args),
+
+  /** Logs a completed workout (one session + its sets) from the quick-add form. Returns the new session id. */
+  gymLogWorkout: (args: {
+    notes?: string;
+    sets: { exercise: string; weight?: number; reps?: number; rpe?: number }[];
+  }) => invoke<string>("gym_log_workout", args),
+
+  /** Creates a new study card from the quick-add form. Returns the new card id. */
+  studyCreateCard: (args: { front: string; back: string; courseId?: string }) =>
+    invoke<string>("study_create_card", args),
+
+  /** Records a review of `id` with `quality` (0-5), rescheduling it via SM-2. */
+  studyReviewCard: (id: string, quality: number) =>
+    invoke<void>("study_review_card", { id, quality }),
+
   /** Calendar events starting in `[start, end)` (RFC3339 timestamps), ascending. */
   calendarEventsBetween: (start: string, end: string) =>
     invoke<CalendarEvent[]>("calendar_events_between", { start, end }),

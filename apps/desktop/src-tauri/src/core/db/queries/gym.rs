@@ -1,6 +1,8 @@
 use anyhow::Result;
+use chrono::Utc;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::core::db::Db;
 
@@ -107,5 +109,91 @@ impl Db {
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             Ok(rows)
         })
+    }
+}
+
+/// A single set within a `log_workout` call, before it has a session/id.
+/// `Deserialize` lets it double as the wire type for the `gym_log_workout`
+/// command's `sets` argument (same shape the `log_workout` agent tool
+/// parses from JSON).
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetInput {
+    pub exercise: String,
+    pub weight: Option<f64>,
+    pub reps: Option<i64>,
+    pub rpe: Option<f64>,
+}
+
+/// Creates one completed `GymSession` (started/ended "now") and inserts each
+/// of `sets` under it, in order (`set_index` = 0-based position). Errors if
+/// `sets` is empty.
+pub(crate) fn log_workout(db: &Db, notes: Option<String>, sets: Vec<SetInput>) -> Result<GymSession> {
+    if sets.is_empty() {
+        anyhow::bail!("at least one set is required");
+    }
+
+    let now = Utc::now().to_rfc3339();
+    let session = GymSession {
+        id: Uuid::new_v4().to_string(),
+        program_id: None,
+        started_at: now.clone(),
+        ended_at: Some(now),
+        notes,
+    };
+    db.insert_session(&session)?;
+
+    for (i, input) in sets.into_iter().enumerate() {
+        let set = GymSet {
+            id: Uuid::new_v4().to_string(),
+            session_id: session.id.clone(),
+            exercise: input.exercise,
+            weight: input.weight,
+            reps: input.reps,
+            rpe: input.rpe,
+            set_index: Some(i as i64),
+        };
+        db.insert_set(&set)?;
+    }
+
+    Ok(session)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn log_workout_requires_at_least_one_set() {
+        let db = Db::open_in_memory().unwrap();
+        assert!(log_workout(&db, None, vec![]).is_err());
+    }
+
+    #[test]
+    fn log_workout_inserts_session_and_indexed_sets() {
+        let db = Db::open_in_memory().unwrap();
+        let sets = vec![
+            SetInput {
+                exercise: "Squat".into(),
+                weight: Some(100.0),
+                reps: Some(5),
+                rpe: Some(8.0),
+            },
+            SetInput {
+                exercise: "Squat".into(),
+                weight: Some(105.0),
+                reps: Some(3),
+                rpe: Some(9.0),
+            },
+        ];
+        let session = log_workout(&db, Some("felt strong".into()), sets).unwrap();
+        assert_eq!(session.notes.as_deref(), Some("felt strong"));
+
+        let recent = db.recent_sessions(10).unwrap();
+        assert_eq!(recent, vec![session.clone()]);
+
+        let squat_sets = db.sets_for_exercise("Squat", 10).unwrap();
+        assert_eq!(squat_sets.len(), 2);
+        assert_eq!(squat_sets[0].set_index, Some(0));
+        assert_eq!(squat_sets[1].set_index, Some(1));
     }
 }

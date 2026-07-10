@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ipc, type DietLog, type DietTargets } from "../../lib/ipc";
 
 /** Local (not UTC) `YYYY-MM-DD` for "today", matching how the user thinks about their day. */
@@ -36,6 +36,8 @@ export interface UseDietTodayResult {
   logs: DietLog[];
   targets: DietTargets | null;
   totals: DietTotals;
+  /** Re-fetches today's logs + targets (e.g. after logging a meal). */
+  refetch: () => void;
 }
 
 /** Fetches today's diet logs + the current targets from the backend. */
@@ -44,6 +46,7 @@ export function useDietToday(): UseDietTodayResult {
   const [error, setError] = useState(false);
   const [logs, setLogs] = useState<DietLog[]>([]);
   const [targets, setTargets] = useState<DietTargets | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +67,9 @@ export function useDietToday(): UseDietTodayResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshToken]);
 
-  return { loading, error, logs, targets, totals: sumDietLogs(logs) };
+  const refetch = useCallback(() => setRefreshToken((t) => t + 1), []);
+
+  return { loading, error, logs, targets, totals: sumDietLogs(logs), refetch };
 }

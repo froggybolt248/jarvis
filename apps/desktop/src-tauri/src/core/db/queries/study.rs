@@ -1,6 +1,8 @@
 use anyhow::Result;
-use rusqlite::params;
+use chrono::{Duration, Utc};
+use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::core::db::Db;
 
@@ -84,6 +86,95 @@ impl Db {
             Ok(())
         })
     }
+
+    /// A single card by id, or `None` if it doesn't exist.
+    pub fn get_card(&self, id: &str) -> Result<Option<SrsCard>> {
+        self.with_conn(|conn| {
+            let sql = format!("SELECT {SELECT_COLUMNS} FROM srs_cards WHERE id = ?1");
+            conn.query_row(&sql, params![id], row_to_card)
+                .optional()
+                .map_err(Into::into)
+        })
+    }
+}
+
+/// Applies the canonical SM-2 spaced-repetition algorithm to a card's current
+/// scheduling state given a review `quality` (0..=5), returning the new
+/// `(ease_factor, interval_days, repetitions)`. Pure and side-effect free;
+/// the caller is responsible for computing `due_at` from `interval_days` and
+/// persisting the result.
+pub(crate) fn apply_sm2(
+    ease_factor: f64,
+    interval_days: i64,
+    repetitions: i64,
+    quality: u8,
+) -> (f64, i64, i64) {
+    let q = quality.min(5) as f64;
+
+    let mut new_ef = ease_factor + (0.1 - (5.0 - q) * (0.08 + (5.0 - q) * 0.02));
+    if new_ef < 1.3 {
+        new_ef = 1.3;
+    }
+
+    if quality < 3 {
+        (new_ef, 1, 0)
+    } else {
+        let new_reps = repetitions + 1;
+        let new_interval = if new_reps == 1 {
+            1
+        } else if new_reps == 2 {
+            6
+        } else {
+            (interval_days as f64 * new_ef).round() as i64
+        };
+        (new_ef, new_interval, new_reps)
+    }
+}
+
+/// Creates a new SRS card, due immediately, with the default SM-2 starting
+/// state (ease factor 2.5, interval 0, 0 repetitions).
+pub(crate) fn create_study_card(
+    db: &Db,
+    front: String,
+    back: String,
+    course_id: Option<String>,
+) -> Result<SrsCard> {
+    let now = Utc::now().to_rfc3339();
+    let card = SrsCard {
+        id: Uuid::new_v4().to_string(),
+        course_id,
+        front,
+        back,
+        ease_factor: 2.5,
+        interval_days: 0,
+        repetitions: 0,
+        due_at: now.clone(),
+        created_at: now,
+    };
+    db.insert_card(&card)?;
+    Ok(card)
+}
+
+/// Reviews a card: applies SM-2 to its current scheduling state and persists
+/// the update. Errors if no card with `id` exists.
+pub(crate) fn review_study_card(db: &Db, id: &str, quality: u8) -> Result<SrsCard> {
+    let card = db
+        .get_card(id)?
+        .ok_or_else(|| anyhow::anyhow!("no such study card: {id}"))?;
+
+    let (ease_factor, interval_days, repetitions) =
+        apply_sm2(card.ease_factor, card.interval_days, card.repetitions, quality);
+    let due_at = (Utc::now() + Duration::days(interval_days)).to_rfc3339();
+
+    db.update_card_schedule(id, ease_factor, interval_days, repetitions, &due_at)?;
+
+    Ok(SrsCard {
+        ease_factor,
+        interval_days,
+        repetitions,
+        due_at,
+        ..card
+    })
 }
 
 #[cfg(test)]
@@ -122,5 +213,71 @@ mod tests {
         assert_eq!(updated[0].interval_days, 1);
         assert_eq!(updated[0].repetitions, 1);
         assert_eq!(updated[0].due_at, "2026-07-10T00:00:00Z");
+    }
+
+    #[test]
+    fn get_card_returns_none_when_missing() {
+        let db = Db::open_in_memory().unwrap();
+        assert!(db.get_card("nonexistent").unwrap().is_none());
+    }
+
+    #[test]
+    fn get_card_round_trip() {
+        let db = Db::open_in_memory().unwrap();
+        let card = create_study_card(&db, "front".into(), "back".into(), None).unwrap();
+        let fetched = db.get_card(&card.id).unwrap().unwrap();
+        assert_eq!(fetched, card);
+    }
+
+    #[test]
+    fn review_study_card_updates_schedule_and_errors_on_missing() {
+        let db = Db::open_in_memory().unwrap();
+        let card = create_study_card(&db, "front".into(), "back".into(), None).unwrap();
+
+        let reviewed = review_study_card(&db, &card.id, 5).unwrap();
+        assert_eq!(reviewed.repetitions, 1);
+        assert_eq!(reviewed.interval_days, 1);
+
+        let fetched = db.get_card(&card.id).unwrap().unwrap();
+        assert_eq!(fetched, reviewed);
+
+        assert!(review_study_card(&db, "nonexistent", 5).is_err());
+    }
+
+    #[test]
+    fn apply_sm2_failing_review_resets_progress() {
+        let (ef, interval, reps) = apply_sm2(2.5, 10, 3, 1);
+        assert_eq!(interval, 1);
+        assert_eq!(reps, 0);
+        assert!(ef >= 1.3);
+    }
+
+    #[test]
+    fn apply_sm2_successive_passes_grow_interval() {
+        let (ef1, int1, reps1) = apply_sm2(2.5, 0, 0, 5);
+        assert_eq!(reps1, 1);
+        assert_eq!(int1, 1);
+
+        let (ef2, int2, reps2) = apply_sm2(ef1, int1, reps1, 5);
+        assert_eq!(reps2, 2);
+        assert_eq!(int2, 6);
+
+        let (ef3, int3, reps3) = apply_sm2(ef2, int2, reps2, 5);
+        assert_eq!(reps3, 3);
+        // EF is updated *before* the interval calculation within the same
+        // call, so the interval uses this call's own new EF (ef3), not the
+        // previous call's (ef2).
+        let expected = (int2 as f64 * ef3).round() as i64;
+        assert_eq!(int3, expected);
+    }
+
+    #[test]
+    fn apply_sm2_ease_factor_never_drops_below_1_3() {
+        let mut ef = 1.3;
+        for _ in 0..20 {
+            let (new_ef, _, _) = apply_sm2(ef, 1, 1, 0);
+            assert!(new_ef >= 1.3, "ease factor dropped below 1.3: {new_ef}");
+            ef = new_ef;
+        }
     }
 }

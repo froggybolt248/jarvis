@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ipc, type GymSession } from "../../lib/ipc";
 
 export interface UseGymSessionsResult {
@@ -7,6 +7,8 @@ export interface UseGymSessionsResult {
   sessions: GymSession[];
   /** Session durations in minutes, oldest to newest, for sessions that have ended. */
   durationTrend: number[];
+  /** Re-fetches recent sessions (e.g. after logging a workout). */
+  refetch: () => void;
 }
 
 /** Duration in whole minutes, or `null` if the session hasn't ended yet. */
@@ -23,6 +25,7 @@ export function useGymSessions(limit: number): UseGymSessionsResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [sessions, setSessions] = useState<GymSession[]>([]);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,12 +45,14 @@ export function useGymSessions(limit: number): UseGymSessionsResult {
     return () => {
       cancelled = true;
     };
-  }, [limit]);
+  }, [limit, refreshToken]);
+
+  const refetch = useCallback(() => setRefreshToken((t) => t + 1), []);
 
   const durationTrend = sessions
     .map(sessionDurationMinutes)
     .filter((v): v is number => v !== null)
     .reverse();
 
-  return { loading, error, sessions, durationTrend };
+  return { loading, error, sessions, durationTrend, refetch };
 }

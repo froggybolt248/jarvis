@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ipc, type SrsCard } from "../../lib/ipc";
 
 export interface UseDueCardsResult {
   loading: boolean;
   error: boolean;
   cards: SrsCard[];
+  /** Re-fetches due cards (e.g. after adding or reviewing a card). */
+  refetch: () => void;
 }
 
 /** Fetches SRS cards due right now, soonest first. */
@@ -12,6 +14,7 @@ export function useDueCards(): UseDueCardsResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [cards, setCards] = useState<SrsCard[]>([]);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +34,9 @@ export function useDueCards(): UseDueCardsResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshToken]);
 
-  return { loading, error, cards };
+  const refetch = useCallback(() => setRefreshToken((t) => t + 1), []);
+
+  return { loading, error, cards, refetch };
 }

@@ -149,6 +149,12 @@ pub fn run() {
             commands::gym::gym_recent_sessions,
             commands::gym::gym_sets_for_exercise,
             commands::study::study_due_cards,
+            // Domain writes (quick-add forms)
+            commands::diet::diet_log_meal,
+            commands::diet::diet_set_targets,
+            commands::gym::gym_log_workout,
+            commands::study::study_create_card,
+            commands::study::study_review_card,
             commands::calendar::calendar_events_between,
             commands::calendar::calendar_sync_now,
             commands::calendar::calendar_create_event,
