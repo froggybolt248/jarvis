@@ -14,8 +14,12 @@ Status legend: ✅ done · 🔨 in progress · ⬜ planned · 🚫 deferred/skip
 
 ## In progress
 
-### M4 — Finish the core (make what exists actually work) 🔨
-The M3 dashboards render but can't show real data yet. M4 closes that.
+### M4 — Finish the core (make what exists actually work) — code-complete ✅ / interactive E2E pending
+The M3 dashboards render but couldn't show real data. M4 closes that. All backend +
+frontend work is committed and verified: 145 tests passing, full app binary builds, app
+boots without panic (DB migrates to v2, scheduler starts, vault indexes against live
+Ollama qwen3:4b + nomic-embed-text). Remaining verification needs the user's accounts and
+GUI interaction (see the checklist below).
 - **Calendar sync** — `core/google/sync.rs` incremental sync (wires existing `list_events`
   + `upsert_event`/`set_sync_token`); `calendar_sync_now` command; `create_calendar_event`
   command + agent tool.
