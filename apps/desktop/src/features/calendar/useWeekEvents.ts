@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ipc, type CalendarEvent } from "../../lib/ipc";
 
 export interface UseWeekEventsResult {
   loading: boolean;
   error: boolean;
   events: CalendarEvent[];
+  /** Re-fetches the current week's events (e.g. after a manual sync). */
+  refetch: () => void;
 }
 
 /** Fetches events from the start of today through 7 days out, ascending. */
@@ -12,6 +14,7 @@ export function useWeekEvents(): UseWeekEventsResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,9 +39,11 @@ export function useWeekEvents(): UseWeekEventsResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshToken]);
 
-  return { loading, error, events };
+  const refetch = useCallback(() => setRefreshToken((t) => t + 1), []);
+
+  return { loading, error, events, refetch };
 }
 
 /** Groups events by local calendar day, keyed by `YYYY-MM-DD`, preserving ascending order. */

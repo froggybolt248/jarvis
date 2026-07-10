@@ -2,13 +2,24 @@
 //! client id/secret) are persisted in Windows Credential Manager via
 //! [`token_store`]; the access token is transparently refreshed when stale.
 
+use tauri::State;
+
+use crate::app_state::AppState;
 use crate::core::google::calendar_client::{CalendarClient, CalendarListEntry};
+use crate::core::google::sync::sync_calendar;
 use crate::core::google::{oauth, token_store};
 
 /// Run the loopback OAuth flow (opens the system browser), then persist the
-/// resulting tokens alongside the user's client credentials.
+/// resulting tokens alongside the user's client credentials. On success,
+/// kicks off a best-effort calendar sync so events show up immediately
+/// without waiting for the next scheduled/background sync; a sync failure
+/// here must not fail the connect itself.
 #[tauri::command]
-pub async fn google_connect(client_id: String, client_secret: String) -> Result<(), String> {
+pub async fn google_connect(
+    state: State<'_, AppState>,
+    client_id: String,
+    client_secret: String,
+) -> Result<(), String> {
     let tokens = oauth::run_loopback_flow(&client_id, &client_secret)
         .await
         .map_err(|e| e.to_string())?;
@@ -24,7 +35,13 @@ pub async fn google_connect(client_id: String, client_secret: String) -> Result<
         client_id,
         client_secret,
     })
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+
+    if let Err(err) = sync_calendar(&state.db, "primary").await {
+        eprintln!("post-connect calendar sync failed: {err:#}");
+    }
+
+    Ok(())
 }
 
 /// Whether Google is currently connected (tokens present).
@@ -42,35 +59,11 @@ pub fn google_disconnect() -> Result<(), String> {
 /// Smoke-test the connection: list the user's calendars.
 #[tauri::command]
 pub async fn google_list_calendars() -> Result<Vec<CalendarListEntry>, String> {
-    let token = valid_access_token().await?;
+    let token = crate::core::google::valid_access_token()
+        .await
+        .map_err(|e| e.to_string())?;
     CalendarClient::new(token)
         .list_calendars()
         .await
         .map_err(|e| e.to_string())
-}
-
-/// Return a usable access token, refreshing (and re-persisting) it if it is
-/// within 60s of expiry. Errors if Google isn't connected.
-async fn valid_access_token() -> Result<String, String> {
-    let stored = token_store::load()
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Google is not connected".to_string())?;
-
-    if stored.expires_at > chrono::Utc::now() + chrono::Duration::seconds(60) {
-        return Ok(stored.access_token);
-    }
-
-    let refreshed =
-        oauth::refresh_access_token(&stored.client_id, &stored.client_secret, &stored.refresh_token)
-            .await
-            .map_err(|e| e.to_string())?;
-    let updated = token_store::StoredTokens {
-        refresh_token: refreshed.refresh_token.unwrap_or(stored.refresh_token),
-        access_token: refreshed.access_token,
-        expires_at: refreshed.expires_at,
-        client_id: stored.client_id,
-        client_secret: stored.client_secret,
-    };
-    token_store::save(&updated).map_err(|e| e.to_string())?;
-    Ok(updated.access_token)
 }

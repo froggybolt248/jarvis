@@ -5,6 +5,7 @@
 //! implementation and turn its result (or failure) into a string that can be
 //! fed back into the conversation as a `Role::Tool` message.
 
+pub mod calendar;
 pub mod vault;
 
 use crate::core::agent::provider::{ChatProvider, ToolCallData, ToolDef};
@@ -39,6 +40,7 @@ impl ToolRegistry {
                 Box::new(vault::VaultSearch),
                 Box::new(vault::VaultRead),
                 Box::new(vault::VaultAppend),
+                Box::new(calendar::CreateCalendarEvent),
             ],
         }
     }
@@ -107,18 +109,20 @@ mod tests {
     }
 
     #[test]
-    fn with_defaults_registers_exactly_three_tools() {
+    fn with_defaults_registers_all_built_in_tools() {
         let registry = ToolRegistry::with_defaults();
         let defs = registry.defs();
         let names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
-        assert_eq!(names.len(), 3);
+        assert_eq!(names.len(), 4);
         assert!(names.contains(&"vault_search"));
         assert!(names.contains(&"vault_read"));
         assert!(names.contains(&"vault_append"));
+        assert!(names.contains(&"create_calendar_event"));
 
         assert!(registry.find("vault_search").is_some());
         assert!(registry.find("vault_read").is_some());
         assert!(registry.find("vault_append").is_some());
+        assert!(registry.find("create_calendar_event").is_some());
         assert!(registry.find("nonexistent").is_none());
     }
 

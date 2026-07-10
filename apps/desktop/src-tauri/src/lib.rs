@@ -64,6 +64,12 @@ pub fn run() {
                     eprintln!("startup vault indexing failed: {err:#}");
                 }
 
+                // Best-effort calendar sync: fine if Google isn't connected
+                // yet (errors), must never block startup.
+                if let Err(err) = crate::core::google::sync::sync_calendar(&state.db, "primary").await {
+                    eprintln!("startup calendar sync failed: {err:#}");
+                }
+
                 let (watcher, mut rx) = match vault.watch() {
                     Ok(pair) => pair,
                     Err(err) => {
@@ -144,6 +150,8 @@ pub fn run() {
             commands::gym::gym_sets_for_exercise,
             commands::study::study_due_cards,
             commands::calendar::calendar_events_between,
+            commands::calendar::calendar_sync_now,
+            commands::calendar::calendar_create_event,
             // Knowledge (vault notes)
             commands::knowledge::vault_list_notes,
         ])

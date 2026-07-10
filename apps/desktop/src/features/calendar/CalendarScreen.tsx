@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
 import { Divider } from "../../components/ui/Divider";
 import { CalendarIcon } from "../../components/icons";
+import { ipc } from "../../lib/ipc";
 import { useWeekEvents, groupEventsByDay } from "./useWeekEvents";
 
 const dayHeaderFormat = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" });
@@ -27,13 +30,32 @@ function LoadingCard() {
 }
 
 export function CalendarScreen() {
-  const { loading, error, events } = useWeekEvents();
+  const { loading, error, events, refetch } = useWeekEvents();
+  const [syncing, setSyncing] = useState(false);
   const groups = groupEventsByDay(events);
   const days = Array.from(groups.keys()).sort();
 
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      await ipc.calendarSyncNow();
+    } catch {
+      // Best-effort: Google may not be connected yet. Refetch regardless
+      // so the screen reflects whatever the local cache currently has.
+    } finally {
+      setSyncing(false);
+      refetch();
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 p-8">
-      <h1 className="text-lg font-semibold tracking-tight text-ink">Calendar</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold tracking-tight text-ink">Calendar</h1>
+        <Button variant="ghost" onClick={handleSync} disabled={syncing}>
+          {syncing ? "Syncing…" : "Sync now"}
+        </Button>
+      </div>
 
       {loading ? (
         <LoadingCard />

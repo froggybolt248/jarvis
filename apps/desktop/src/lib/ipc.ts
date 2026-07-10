@@ -280,6 +280,18 @@ export const ipc = {
   calendarEventsBetween: (start: string, end: string) =>
     invoke<CalendarEvent[]>("calendar_events_between", { start, end }),
 
+  /** Sync the primary Google calendar into the local cache now. Returns the number of events upserted. */
+  calendarSyncNow: () => invoke<number>("calendar_sync_now"),
+
+  /** Create a new event on the primary Google calendar (and the local cache). */
+  createCalendarEvent: (args: {
+    summary: string;
+    startRfc3339: string;
+    endRfc3339: string;
+    description?: string;
+    location?: string;
+  }) => invoke<void>("calendar_create_event", args),
+
   // ── Knowledge (vault notes) ──────────────────────────────────────────
   /** Summaries of every note in the vault, newest-modified first. */
   vaultListNotes: () => invoke<NoteSummary[]>("vault_list_notes"),
