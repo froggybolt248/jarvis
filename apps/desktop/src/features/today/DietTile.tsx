@@ -14,9 +14,11 @@ export function DietTile({ className }: DietTileProps) {
 
   return (
     <Tile className={cn("flex flex-col gap-3", className)}>
-      <div className="flex items-center gap-2 text-ink-dim">
-        <FlameIcon size={16} />
-        <span className="text-xs font-medium uppercase tracking-wide">Diet</span>
+      <div className="flex items-center gap-2">
+        <span className="text-dom-diet">
+          <FlameIcon size={16} />
+        </span>
+        <span className="text-xs font-medium uppercase tracking-wide text-ink-dim">Diet</span>
       </div>
 
       {loading ? (
@@ -32,7 +34,13 @@ export function DietTile({ className }: DietTileProps) {
       ) : (
         <div className="flex items-center gap-4">
           {targets?.calories ? (
-            <ProgressRing value={totals.calories} max={targets.calories} size={72} strokeWidth={6}>
+            <ProgressRing
+              value={totals.calories}
+              max={targets.calories}
+              size={72}
+              strokeWidth={6}
+              color="var(--color-dom-diet)"
+            >
               <div className="flex flex-col items-center">
                 <span className="text-sm font-semibold text-ink">{Math.round(totals.calories)}</span>
                 <span className="text-[10px] text-ink-faint">/ {targets.calories}</span>
@@ -58,7 +66,7 @@ export function DietTile({ className }: DietTileProps) {
                     <span>{Math.round(macro.grams)}g</span>
                   </div>
                   <div className="h-1 w-full overflow-hidden rounded-pill bg-surface-3">
-                    <div className="h-full rounded-pill bg-accent" style={{ width: `${pct}%` }} />
+                    <div className="h-full rounded-pill bg-dom-diet" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );

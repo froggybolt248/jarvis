@@ -26,6 +26,18 @@
   --color-positive: #7dd48a;
   --color-caution: #e8927c;
 
+  /*
+   * Domain hues — each life domain owns one committed color, used for
+   * identity (screen title mark, tile icon, nav indicator) and its own data
+   * (rings, bars, sparklines). Amber stays reserved for Jarvis's voice.
+   * All are ≥7:1 on surface-0/1 so they work as text at any size.
+   */
+  --color-dom-calendar: #7ba3ff;
+  --color-dom-diet: #ff8f6b;
+  --color-dom-gym: #7ee0a3;
+  --color-dom-study: #c09aff;
+  --color-dom-knowledge: #6fd3de;
+
   --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
 
   --radius-card: 10px;

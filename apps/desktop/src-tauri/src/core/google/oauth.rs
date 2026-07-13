@@ -13,7 +13,6 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
-use std::process::Command;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
@@ -217,28 +216,17 @@ fn to_oauth_tokens(token_result: &oauth2::basic::BasicTokenResponse) -> OAuthTok
     }
 }
 
-/// Opens `url` in the user's default browser on Windows via `cmd /C start`,
-/// without flashing a console window.
+/// Opens `url` in the user's default browser.
+///
+/// Two earlier hand-rolled launchers failed on Windows: `cmd /C start` splits
+/// its command line on every unescaped `&`, truncating any multi-parameter
+/// OAuth URL at the first `&` (dropping `client_id`); `explorer.exe <url>`
+/// opens a file-browser window instead of the default browser for query-heavy
+/// URLs. `tauri-plugin-opener` (already a dependency) delegates to the `open`
+/// crate's `ShellExecute`-based launcher, which escapes URLs correctly on every
+/// platform — so we use it rather than reinventing the shell quoting.
 fn open_in_browser(url: &str) -> Result<()> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .context("failed to launch browser")?;
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        // Best-effort fallback for non-Windows dev environments.
-        Command::new("xdg-open")
-            .arg(url)
-            .spawn()
-            .context("failed to launch browser")?;
-    }
-    Ok(())
+    tauri_plugin_opener::open_url(url, None::<&str>).context("failed to launch browser")
 }
 
 /// Blocks accepting exactly one connection on `listener`, parses the

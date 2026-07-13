@@ -30,10 +30,10 @@ const viewMeta: Record<View, { label: string; icon: ComponentType<IconProps> }> 
   settings: { label: "Settings", icon: SettingsIcon },
 };
 
-const actions = [
-  { id: "log-meal", label: "Log a meal", icon: PlusIcon },
-  { id: "start-workout", label: "Start workout", icon: PlusIcon },
-  { id: "review-cards", label: "Review cards", icon: CheckIcon },
+const actions: { id: string; label: string; icon: ComponentType<IconProps>; view: View }[] = [
+  { id: "log-meal", label: "Log a meal", icon: PlusIcon, view: "diet" },
+  { id: "start-workout", label: "Start workout", icon: PlusIcon, view: "gym" },
+  { id: "review-cards", label: "Review cards", icon: CheckIcon, view: "study" },
 ];
 
 const itemClass =
@@ -175,7 +175,10 @@ export function CommandPalette() {
                         <Command.Item
                           key={action.id}
                           value={action.label}
-                          onSelect={() => setOpen(false)}
+                          onSelect={() => {
+                            setView(action.view);
+                            setOpen(false);
+                          }}
                           className={itemClass}
                         >
                           <Icon size={16} />

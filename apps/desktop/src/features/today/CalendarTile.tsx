@@ -24,9 +24,11 @@ export function CalendarTile({ className }: CalendarTileProps) {
 
   return (
     <Tile className={cn("flex flex-col gap-3", className)}>
-      <div className="flex items-center gap-2 text-ink-dim">
-        <CalendarIcon size={16} />
-        <span className="text-xs font-medium uppercase tracking-wide">Calendar</span>
+      <div className="flex items-center gap-2">
+        <span className="text-dom-calendar">
+          <CalendarIcon size={16} />
+        </span>
+        <span className="text-xs font-medium uppercase tracking-wide text-ink-dim">Calendar</span>
       </div>
 
       {loading ? (

@@ -17,9 +17,11 @@ export function GymTile({ className }: GymTileProps) {
 
   return (
     <Tile className={cn("flex flex-col gap-3", className)}>
-      <div className="flex items-center gap-2 text-ink-dim">
-        <DumbbellIcon size={16} />
-        <span className="text-xs font-medium uppercase tracking-wide">Gym</span>
+      <div className="flex items-center gap-2">
+        <span className="text-dom-gym">
+          <DumbbellIcon size={16} />
+        </span>
+        <span className="text-xs font-medium uppercase tracking-wide text-ink-dim">Gym</span>
       </div>
 
       {loading ? (
@@ -34,7 +36,7 @@ export function GymTile({ className }: GymTileProps) {
               <span className="text-ink-faint"> • last: {dateFormat.format(new Date(last.started_at))}</span>
             ) : null}
           </p>
-          {durationTrend.length >= 2 ? <Sparkline values={durationTrend} className="shrink-0" /> : null}
+          {durationTrend.length >= 2 ? <Sparkline values={durationTrend} color="var(--color-dom-gym)" className="shrink-0" /> : null}
         </div>
       )}
     </Tile>

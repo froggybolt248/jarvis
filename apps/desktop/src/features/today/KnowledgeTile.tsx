@@ -22,9 +22,11 @@ export function KnowledgeTile({ className }: KnowledgeTileProps) {
 
   return (
     <Tile className={cn("flex flex-col gap-3", className)}>
-      <div className="flex items-center gap-2 text-ink-dim">
-        <BrainIcon size={16} />
-        <span className="text-xs font-medium uppercase tracking-wide">Knowledge</span>
+      <div className="flex items-center gap-2">
+        <span className="text-dom-knowledge">
+          <BrainIcon size={16} />
+        </span>
+        <span className="text-xs font-medium uppercase tracking-wide text-ink-dim">Knowledge</span>
         {showList && <span className="text-xs text-ink-faint">{notes.length}</span>}
       </div>
 

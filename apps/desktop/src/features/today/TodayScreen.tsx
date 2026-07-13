@@ -14,7 +14,7 @@ const gridTemplate = {
 export function TodayScreen() {
   return (
     <div className="h-full overflow-y-auto p-8">
-      <div className="grid grid-cols-3 gap-4" style={gridTemplate}>
+      <div className="mx-auto grid w-full max-w-5xl grid-cols-3 gap-4" style={gridTemplate}>
         <HeroCard className="[grid-area:hero]" />
         <CalendarTile className="[grid-area:cal]" />
         <DietTile className="[grid-area:diet]" />

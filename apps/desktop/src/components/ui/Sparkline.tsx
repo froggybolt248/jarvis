@@ -5,10 +5,12 @@ export interface SparklineProps {
   width?: number;
   height?: number;
   className?: string;
+  /** Color for the trailing point marker. Defaults to the accent token. */
+  color?: string;
 }
 
 /** Tiny inline trend line. Purely decorative context, not a chart to read precisely. */
-export function Sparkline({ values, width = 64, height = 24, className }: SparklineProps) {
+export function Sparkline({ values, width = 64, height = 24, className, color = "var(--color-accent)" }: SparklineProps) {
   if (values.length < 2) return null;
 
   const min = Math.min(...values);
@@ -37,7 +39,7 @@ export function Sparkline({ values, width = 64, height = 24, className }: Sparkl
         cx={(values.length - 1) * step}
         cy={height - ((values[values.length - 1] - min) / range) * height}
         r={2}
-        fill="var(--color-accent)"
+        fill={color}
       />
     </svg>
   );

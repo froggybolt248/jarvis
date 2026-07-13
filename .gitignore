@@ -19,6 +19,8 @@ apps/desktop/src-tauri/binaries/
 # OS
 Thumbs.db
 .DS_Store
+# Windows reserved-device-name artifact occasionally created by shell redirects
+nul
 
 # Editor
 .vscode/*

@@ -9,6 +9,8 @@ export interface ProgressRingProps {
   className?: string;
   /** Content rendered in the center of the ring, e.g. a kcal readout. */
   children?: ReactNode;
+  /** Fill color for the progress arc. Defaults to the accent token. */
+  color?: string;
 }
 
 /** Static SVG progress ring. No animation — the value is a fact, not a stream. */
@@ -19,6 +21,7 @@ export function ProgressRing({
   strokeWidth = 7,
   className,
   children,
+  color = "var(--color-accent)",
 }: ProgressRingProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -42,7 +45,7 @@ export function ProgressRing({
           cy={center}
           r={radius}
           fill="none"
-          stroke="var(--color-accent)"
+          stroke={color}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}

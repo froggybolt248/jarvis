@@ -18,7 +18,7 @@ function formatEventTime(event: { start_at: string | null; all_day: boolean }): 
 
 function LoadingCard() {
   return (
-    <Card className="max-w-xl">
+    <Card>
       <div className="mb-3 h-4 w-20 animate-pulse rounded-pill bg-surface-2" />
       <div className="flex flex-col gap-3">
         <div className="h-4 w-full animate-pulse rounded-pill bg-surface-2" />
@@ -49,58 +49,75 @@ export function CalendarScreen() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-tight text-ink">Calendar</h1>
-        <Button variant="ghost" onClick={handleSync} disabled={syncing}>
-          {syncing ? "Syncing…" : "Sync now"}
-        </Button>
-      </div>
+    <div className="h-full overflow-y-auto p-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="rounded-tile bg-dom-calendar/15 p-1.5 text-dom-calendar">
+              <CalendarIcon size={18} />
+            </span>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">Calendar</h1>
+          </div>
+          <Button variant="ghost" onClick={handleSync} disabled={syncing}>
+            {syncing ? "Syncing…" : "Sync now"}
+          </Button>
+        </div>
 
-      {loading ? (
-        <LoadingCard />
-      ) : (
-        <Card className="max-w-xl">
-          <h2 className="mb-3 text-sm font-medium text-ink-dim">This week</h2>
-
-          {error ? (
-            <p className="text-sm text-ink-faint">Couldn't reach the backend — try again shortly.</p>
-          ) : days.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <CalendarIcon size={20} className="text-ink-faint" />
-              <p className="text-sm text-ink-dim">Nothing on the calendar this week.</p>
-              <p className="text-xs text-ink-faint">Connect Google Calendar in Settings to see events here.</p>
-            </div>
+        <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+          {loading ? (
+            <LoadingCard />
           ) : (
-            <div className="flex flex-col">
-              {days.map((day, dayIndex) => (
-                <div key={day}>
-                  {dayIndex > 0 ? <Divider className="my-4" /> : null}
-                  <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">
-                    {dayHeaderFormat.format(new Date(`${day}T00:00:00`))}
+            <Card>
+              <h2 className="mb-3 text-sm font-medium text-ink-dim">This week</h2>
+
+              {error ? (
+                <p className="text-sm text-ink-faint">Couldn't reach the backend — try again shortly.</p>
+              ) : days.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-6 text-center">
+                  <span className="rounded-tile bg-dom-calendar/15 p-1.5 text-dom-calendar">
+                    <CalendarIcon size={20} />
                   </span>
-                  <div className="mt-2 flex flex-col">
-                    {groups.get(day)!.map((event, i) => (
-                      <div key={event.id}>
-                        {i > 0 ? <Divider className="my-3" /> : null}
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex min-w-0 flex-col gap-0.5">
-                            <span className="truncate text-sm text-ink">{event.summary ?? "Untitled event"}</span>
-                            {event.location ? (
-                              <span className="truncate text-xs text-ink-faint">{event.location}</span>
-                            ) : null}
-                          </div>
-                          <span className="shrink-0 text-xs text-ink-dim">{formatEventTime(event)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-sm text-ink-dim">Nothing on the calendar this week.</p>
+                  <p className="text-xs text-ink-faint">Connect Google Calendar in Settings to see events here.</p>
                 </div>
-              ))}
-            </div>
+              ) : (
+                <div className="flex flex-col">
+                  {days.map((day, dayIndex) => (
+                    <div key={day}>
+                      {dayIndex > 0 ? <Divider className="my-4" /> : null}
+                      <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+                        {dayHeaderFormat.format(new Date(`${day}T00:00:00`))}
+                      </span>
+                      <div className="mt-2 flex flex-col">
+                        {groups.get(day)!.map((event, i) => (
+                          <div key={event.id}>
+                            {i > 0 ? <Divider className="my-3" /> : null}
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex min-w-0 flex-col gap-0.5">
+                                <span className="truncate text-sm text-ink">{event.summary ?? "Untitled event"}</span>
+                                {event.location ? (
+                                  <span className="truncate text-xs text-ink-faint">{event.location}</span>
+                                ) : null}
+                              </div>
+                              <span className="shrink-0 text-xs text-ink-dim">{formatEventTime(event)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
           )}
-        </Card>
-      )}
+
+          <Card className="flex flex-col gap-2">
+            <h2 className="text-sm font-medium text-ink-dim">This week at a glance</h2>
+            <span className="text-3xl font-semibold tabular-nums text-ink">{events.length}</span>
+            <p className="text-xs text-ink-faint">event{events.length === 1 ? "" : "s"} scheduled</p>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
