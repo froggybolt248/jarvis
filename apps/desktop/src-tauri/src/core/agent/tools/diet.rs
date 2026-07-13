@@ -1,10 +1,12 @@
 // WP-Agent-Tools owns this file.
 
-//! Diet-logging agent tools: `log_meal` and `set_diet_targets`. Both mutate
-//! the local SQLite diet tables (via the shared `queries::diet` helpers also
-//! used by the quick-add form commands) and log a Quiet Feed audit row.
+//! Diet-logging agent tools: `log_meal` and `set_diet_targets` (mutating),
+//! plus `get_diet_today` (read-only). The mutating tools write to the local
+//! SQLite diet tables (via the shared `queries::diet` helpers also used by
+//! the quick-add form commands) and log a Quiet Feed audit row.
 
 use anyhow::Result;
+use chrono::Local;
 use serde_json::Value;
 
 use crate::core::agent::provider::ToolDef;
@@ -18,6 +20,11 @@ fn required_str<'a>(args: &'a Value, field: &str) -> Result<&'a str> {
     args.get(field)
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow::anyhow!("missing or non-string required field '{field}'"))
+}
+
+/// Extract an optional string field from a JSON object.
+fn optional_str(args: &Value, field: &str) -> Option<String> {
+    args.get(field).and_then(Value::as_str).map(str::to_string)
 }
 
 /// Extract an optional integer field.
@@ -161,6 +168,94 @@ impl Tool for SetDietTargets {
     }
 }
 
+/// Read-only: today's (or a given date's) meal logs, totals, and current targets.
+pub struct GetDietToday;
+
+#[async_trait::async_trait]
+impl Tool for GetDietToday {
+    fn def(&self) -> ToolDef {
+        ToolDef {
+            name: "get_diet_today".to_string(),
+            description: "Get the user's logged meals, calorie/macro totals, and current diet \
+                targets for a given day (defaults to today, local time). Use this before \
+                answering any question about what the user has eaten or how they're tracking \
+                against their targets."
+                .to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "Date to look up, YYYY-MM-DD (default: today, local time)."
+                    }
+                },
+                "required": [],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    async fn execute(&self, ctx: &ToolContext<'_>, args: &Value) -> Result<String> {
+        let date = optional_str(args, "date").unwrap_or_else(|| Local::now().format("%Y-%m-%d").to_string());
+
+        let logs = ctx.db.logs_for_date(&date)?;
+        let targets = ctx.db.current_targets()?;
+
+        let mut out = String::new();
+        if logs.is_empty() {
+            out.push_str(&format!("No meals logged for {date}."));
+        } else {
+            let mut total_kcal = 0i64;
+            let mut total_protein = 0i64;
+            let mut total_carbs = 0i64;
+            let mut total_fat = 0i64;
+            let mut lines = Vec::with_capacity(logs.len());
+            for log in &logs {
+                let time = log
+                    .logged_at
+                    .split('T')
+                    .nth(1)
+                    .map(|t| t.chars().take(5).collect::<String>())
+                    .unwrap_or_else(|| "?".to_string());
+                let kcal = log
+                    .calories
+                    .map(|c| format!(" ({c} kcal)"))
+                    .unwrap_or_default();
+                lines.push(format!("- {time} {}{kcal}", log.description));
+                total_kcal += log.calories.unwrap_or(0);
+                total_protein += log.protein_g.unwrap_or(0);
+                total_carbs += log.carbs_g.unwrap_or(0);
+                total_fat += log.fat_g.unwrap_or(0);
+            }
+            out.push_str(&format!("Meals for {date}:\n{}\n\n", lines.join("\n")));
+            out.push_str(&format!(
+                "Totals: {total_kcal} kcal, {total_protein}g protein, {total_carbs}g carbs, {total_fat}g fat."
+            ));
+        }
+
+        if let Some(targets) = targets {
+            let mut parts = Vec::new();
+            if let Some(c) = targets.calories {
+                parts.push(format!("{c} kcal"));
+            }
+            if let Some(p) = targets.protein_g {
+                parts.push(format!("{p}g protein"));
+            }
+            if let Some(c) = targets.carbs_g {
+                parts.push(format!("{c}g carbs"));
+            }
+            if let Some(f) = targets.fat_g {
+                parts.push(format!("{f}g fat"));
+            }
+            if !parts.is_empty() {
+                out.push_str(&format!("\nTargets: {}.", parts.join(", ")));
+            }
+        }
+
+        Ok(out)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,5 +345,44 @@ mod tests {
         let feed = db.recent_feed(10).unwrap();
         assert_eq!(feed.len(), 1);
         assert_eq!(feed[0].source.as_deref(), Some("set_diet_targets"));
+    }
+
+    #[tokio::test]
+    async fn get_diet_today_reports_logs_and_targets() {
+        let (db, _dir, vault, provider) = ctx_parts();
+        let ctx = ToolContext { db: &db, vault: &vault, provider: &provider };
+
+        let log_tool = LogMeal;
+        let log_args = serde_json::json!({
+            "description": "oatmeal",
+            "calories": 300,
+            "protein_g": 10,
+            "carbs_g": 50,
+            "fat_g": 5
+        });
+        log_tool.execute(&ctx, &log_args).await.unwrap();
+
+        let targets_tool = SetDietTargets;
+        let targets_args = serde_json::json!({"calories": 2200, "protein_g": 170});
+        targets_tool.execute(&ctx, &targets_args).await.unwrap();
+
+        let tool = GetDietToday;
+        let result = tool.execute(&ctx, &serde_json::json!({})).await.unwrap();
+
+        assert!(result.contains("oatmeal"), "got: {result}");
+        assert!(result.contains("300 kcal"), "got: {result}");
+        assert!(result.contains("Totals: 300 kcal"), "got: {result}");
+        assert!(result.contains("Targets: 2200 kcal, 170g protein"), "got: {result}");
+    }
+
+    #[tokio::test]
+    async fn get_diet_today_reports_no_meals_when_empty() {
+        let (db, _dir, vault, provider) = ctx_parts();
+        let ctx = ToolContext { db: &db, vault: &vault, provider: &provider };
+
+        let tool = GetDietToday;
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let result = tool.execute(&ctx, &serde_json::json!({})).await.unwrap();
+        assert_eq!(result, format!("No meals logged for {today}."));
     }
 }

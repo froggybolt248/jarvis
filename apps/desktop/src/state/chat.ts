@@ -52,6 +52,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     const handleEvent = (e: AgentEvent) => {
+      // A stray event delivered after this turn already ended (or was reset)
+      // must not resurrect state; the listener is disposed synchronously
+      // below on every terminal path, but events can still be in flight.
+      if (get().status !== "streaming" && get().status !== "running_tool") return;
       switch (e.type) {
         case "citations":
           set({ citations: e.citations });
@@ -88,18 +92,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     };
 
+    // Register the listener — and stash its disposer in the store — before
+    // invoking the command. `invoke("chat")` doesn't resolve until the whole
+    // turn is done, so storing the disposer only after `await`ing it (the
+    // previous bug) left every terminal handler's `get().unlisten?.()` a
+    // no-op for the entire duration of the turn.
+    let disposer: (() => void) | null = null;
     try {
-      const disposer = await ipc.chat(message, handleEvent);
-      // The turn may already have finished (done/error) before the disposer
-      // resolved; in that case unlisten immediately instead of stashing it.
-      const status = get().status;
-      if (status === "done" || status === "error") {
-        disposer();
-      } else {
-        set({ unlisten: disposer });
-      }
+      disposer = await ipc.listenAgentEvents(handleEvent);
     } catch (err) {
       set({ status: "error", error: String(err), unlisten: null });
+      return;
+    }
+
+    // reset() (or another race) may have already moved us out of this turn
+    // while we were awaiting listener registration — don't clobber it.
+    if (get().status !== "streaming" && get().status !== "running_tool") {
+      disposer();
+      return;
+    }
+    set({ unlisten: disposer });
+
+    try {
+      await ipc.invokeChat(message);
+    } catch (err) {
+      // Only surface the failure if this turn is still live — a reset() (Esc,
+      // palette close) may have already returned us to idle, and a stale
+      // rejection must not resurrect an error state into a fresh palette.
+      if (get().status !== "streaming" && get().status !== "running_tool") return;
+      const fn = get().unlisten;
+      set({ status: "error", error: String(err), unlisten: null });
+      fn?.();
     }
   },
 

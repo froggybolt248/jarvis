@@ -241,23 +241,20 @@ export const ipc = {
 
   // ── Agent chat ────────────────────────────────────────────────────────
   /**
-   * Run one agent turn for `message`, invoking `onEvent` for each streamed
-   * `AgentEvent` (citations, tokens, tool calls/results, done/error). The
-   * listener is wired up before the command is invoked so no early events
-   * are missed. Returns a disposer that unsubscribes the listener; call it
-   * once the turn is done (e.g. after an `AgentEvent` with `type: "done"`
-   * or `"error"`) or on unmount.
+   * Subscribe to `"agent:event"` for one agent turn's stream (citations,
+   * tokens, tool calls/results, done/error), invoking `onEvent` for each.
+   * Resolves with a disposer to unsubscribe. Split from {@link invokeChat}
+   * (rather than one combined `chat()` that awaits the whole turn) so the
+   * disposer is available to the caller *before* the turn starts running,
+   * not only after `invoke("chat")` resolves — the backend command doesn't
+   * resolve until the turn is fully done, so a combined call would leave
+   * callers unable to unlisten mid-turn.
    */
-  chat: async (message: string, onEvent: (e: AgentEvent) => void): Promise<() => void> => {
-    const unlisten = await listen<AgentEvent>("agent:event", (e) => onEvent(e.payload));
-    try {
-      await invoke<void>("chat", { message });
-    } catch (err) {
-      unlisten();
-      throw err;
-    }
-    return unlisten;
-  },
+  listenAgentEvents: (onEvent: (e: AgentEvent) => void): Promise<() => void> =>
+    listen<AgentEvent>("agent:event", (e) => onEvent(e.payload)),
+
+  /** Run one agent turn for `message`. Pairs with {@link listenAgentEvents}. */
+  invokeChat: (message: string) => invoke<void>("chat", { message }),
 
   // ── Domain reads (diet, gym, study, calendar) ────────────────────────
   /** Diet logs for `date` (`YYYY-MM-DD`), oldest first. */

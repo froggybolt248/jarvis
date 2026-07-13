@@ -1,8 +1,9 @@
 // WP-Agent-Tools owns this file.
 
-//! `create_study_card` and `review_study_card`: the agent-facing spaced-
-//! repetition tools. Both delegate to the shared `queries::study` helpers
-//! (also used by the quick-add form commands) and log a Quiet Feed audit row.
+//! `create_study_card` and `review_study_card` (mutating), plus
+//! `get_due_cards` (read-only): the agent-facing spaced-repetition tools.
+//! The mutating tools delegate to the shared `queries::study` helpers (also
+//! used by the quick-add form commands) and log a Quiet Feed audit row.
 
 use anyhow::Result;
 use serde_json::Value;
@@ -12,6 +13,8 @@ use crate::core::db::queries::quiet_feed::QuietFeedItem;
 use crate::core::db::queries::study;
 
 use super::{Tool, ToolContext};
+
+const MAX_DUE_CARDS: usize = 20;
 
 /// Extract a required string field from a JSON object.
 fn required_str<'a>(args: &'a Value, field: &str) -> Result<&'a str> {
@@ -146,6 +149,54 @@ impl Tool for ReviewStudyCard {
     }
 }
 
+/// Read-only: study cards due right now, capped at `MAX_DUE_CARDS`.
+pub struct GetDueCards;
+
+#[async_trait::async_trait]
+impl Tool for GetDueCards {
+    fn def(&self) -> ToolDef {
+        ToolDef {
+            name: "get_due_cards".to_string(),
+            description: "Get the user's spaced-repetition study cards that are due for review \
+                right now. Use this before answering any question about what's due for review or \
+                planning a study session."
+                .to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    async fn execute(&self, ctx: &ToolContext<'_>, _args: &Value) -> Result<String> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let due = ctx.db.due_cards(&now)?;
+
+        if due.is_empty() {
+            return Ok("No cards due right now.".to_string());
+        }
+
+        let total = due.len();
+        let shown = due.iter().take(MAX_DUE_CARDS);
+        let mut lines: Vec<String> = shown
+            .map(|card| {
+                format!(
+                    "- [{}] {} (repetitions={}, due {})",
+                    card.id, card.front, card.repetitions, card.due_at
+                )
+            })
+            .collect();
+
+        if total > MAX_DUE_CARDS {
+            lines.push(format!("...and {} more", total - MAX_DUE_CARDS));
+        }
+
+        Ok(format!("{total} card(s) due:\n{}", lines.join("\n")))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,5 +269,58 @@ mod tests {
 
         let missing_args = serde_json::json!({"id": "nonexistent", "quality": 5});
         assert!(review.execute(&ctx, &missing_args).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn get_due_cards_lists_due_cards() {
+        let db = Db::open_in_memory().unwrap();
+        let dir = tempdir().unwrap();
+        let vault = Vault::open(dir.path()).unwrap();
+        let provider = StubProvider;
+        let ctx = ToolContext { db: &db, vault: &vault, provider: &provider };
+
+        let create = CreateStudyCard;
+        let create_args = serde_json::json!({"front": "What is RRF?", "back": "Reciprocal Rank Fusion"});
+        create.execute(&ctx, &create_args).await.unwrap();
+
+        let tool = GetDueCards;
+        let result = tool.execute(&ctx, &serde_json::json!({})).await.unwrap();
+
+        assert!(result.contains("1 card(s) due"), "got: {result}");
+        assert!(result.contains("What is RRF?"), "got: {result}");
+        assert!(result.contains("repetitions=0"), "got: {result}");
+    }
+
+    #[tokio::test]
+    async fn get_due_cards_reports_none_when_empty() {
+        let db = Db::open_in_memory().unwrap();
+        let dir = tempdir().unwrap();
+        let vault = Vault::open(dir.path()).unwrap();
+        let provider = StubProvider;
+        let ctx = ToolContext { db: &db, vault: &vault, provider: &provider };
+
+        let tool = GetDueCards;
+        let result = tool.execute(&ctx, &serde_json::json!({})).await.unwrap();
+        assert_eq!(result, "No cards due right now.");
+    }
+
+    #[tokio::test]
+    async fn get_due_cards_caps_at_twenty_with_suffix() {
+        let db = Db::open_in_memory().unwrap();
+        let dir = tempdir().unwrap();
+        let vault = Vault::open(dir.path()).unwrap();
+        let provider = StubProvider;
+        let ctx = ToolContext { db: &db, vault: &vault, provider: &provider };
+
+        let create = CreateStudyCard;
+        for i in 0..25 {
+            let args = serde_json::json!({"front": format!("front {i}"), "back": "back"});
+            create.execute(&ctx, &args).await.unwrap();
+        }
+
+        let tool = GetDueCards;
+        let result = tool.execute(&ctx, &serde_json::json!({})).await.unwrap();
+        assert!(result.starts_with("25 card(s) due"), "got: {result}");
+        assert!(result.contains("...and 5 more"), "got: {result}");
     }
 }

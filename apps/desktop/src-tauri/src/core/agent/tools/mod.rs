@@ -44,11 +44,15 @@ impl ToolRegistry {
                 Box::new(vault::VaultRead),
                 Box::new(vault::VaultAppend),
                 Box::new(calendar::CreateCalendarEvent),
+                Box::new(calendar::GetCalendarEvents),
                 Box::new(diet::LogMeal),
                 Box::new(diet::SetDietTargets),
+                Box::new(diet::GetDietToday),
                 Box::new(gym::LogWorkout),
+                Box::new(gym::GetGymRecent),
                 Box::new(study::CreateStudyCard),
                 Box::new(study::ReviewStudyCard),
+                Box::new(study::GetDueCards),
             ],
         }
     }
@@ -121,26 +125,34 @@ mod tests {
         let registry = ToolRegistry::with_defaults();
         let defs = registry.defs();
         let names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
-        assert_eq!(names.len(), 9);
+        assert_eq!(names.len(), 13);
         assert!(names.contains(&"vault_search"));
         assert!(names.contains(&"vault_read"));
         assert!(names.contains(&"vault_append"));
         assert!(names.contains(&"create_calendar_event"));
+        assert!(names.contains(&"get_calendar_events"));
         assert!(names.contains(&"log_meal"));
         assert!(names.contains(&"set_diet_targets"));
+        assert!(names.contains(&"get_diet_today"));
         assert!(names.contains(&"log_workout"));
+        assert!(names.contains(&"get_gym_recent"));
         assert!(names.contains(&"create_study_card"));
         assert!(names.contains(&"review_study_card"));
+        assert!(names.contains(&"get_due_cards"));
 
         assert!(registry.find("vault_search").is_some());
         assert!(registry.find("vault_read").is_some());
         assert!(registry.find("vault_append").is_some());
         assert!(registry.find("create_calendar_event").is_some());
+        assert!(registry.find("get_calendar_events").is_some());
         assert!(registry.find("log_meal").is_some());
         assert!(registry.find("set_diet_targets").is_some());
+        assert!(registry.find("get_diet_today").is_some());
         assert!(registry.find("log_workout").is_some());
+        assert!(registry.find("get_gym_recent").is_some());
         assert!(registry.find("create_study_card").is_some());
         assert!(registry.find("review_study_card").is_some());
+        assert!(registry.find("get_due_cards").is_some());
         assert!(registry.find("nonexistent").is_none());
     }
 
